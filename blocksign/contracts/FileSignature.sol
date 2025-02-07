@@ -29,20 +29,15 @@ contract FileSignature {
         emit FileSigned(msg.sender, fileHash, block.timestamp);
     }
 
-    // Function to verify file signatures
-    function verifyFile(bytes32 fileHash) public view returns (FileRecord[] memory) {
+    function verifyFile(bytes32 fileHash, address user) public view returns (address, bytes memory, uint256) {
         require(records[fileHash].length > 0, "File not signed");
-
-        return records[fileHash];
-    }
-
-    // Function to check if a file is signed by a specific user
-    function isFileSignedByUser(bytes32 fileHash, address user) public view returns (bool) {
         for (uint i = 0; i < records[fileHash].length; i++) {
             if (records[fileHash][i].signer == user) {
-                return true;
+                FileRecord memory record = records[fileHash][i];
+                return (record.signer, record.signature, record.timestamp);
             }
         }
-        return false;
+        revert("File not signed");
     }
+
 }

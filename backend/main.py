@@ -47,6 +47,7 @@ async def upload_file(file: UploadFile ):
             return {"tx_hash": "An error occurred: " + str(e),"result":False}
     except Web3Exception as e:
         if 'insufficient funds' in str(e):
+            print(str(e))
             return {"tx_hash": "Insufficient funds for gas.","result":False}
         else:
             return {"tx_hash": "An unexpected error occurred: " + str(e),"result":False}
@@ -56,19 +57,23 @@ async def verify_signature(file: UploadFile):
     file_content = await file.read()
     file_hash = hashlib.sha256(file_content).hexdigest()
     file_hash_bytes32 = bytes.fromhex(file_hash)
+    wallet_private_key = os.getenv("PRIVATE_KEY")
+    wallet_address = w3.eth.account.from_key(wallet_private_key).address
     try:
-        signer, signature, timestamp = contract.functions.verifyFile(file_hash_bytes32).call()
-        
-        # Create a message object
+        signer, signature, timestamp = contract.functions.verifyFile(file_hash_bytes32, wallet_address).call()
         message = encode_defunct(text=file_hash)
-        
-        # Recover the address from the signature
         recovered_address = Account.recover_message(message, signature=signature)
-        
-        # Verify if the recovered address matches the expected signer
+
+        # Log the signer, signature, and timestamp
+        print(f"Signer: {signer}, Signature: {signature.hex()}, Timestamp: {timestamp}")
+
         if recovered_address.lower() == signer.lower():
             return {"signer": signer, "signature": signature.hex(), "timestamp": timestamp, "verified": True}
         else:
             return {"error": "Signature verification failed", "verified": False}
-    except:
-        return {"error": "File not found"}
+    except ContractLogicError as e:
+        print(f"Contract logic error: {str(e)}")
+        return {"error": "Contract logic error", "verified": False}
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return {"error": "An unexpected error occurred", "verified": False}
