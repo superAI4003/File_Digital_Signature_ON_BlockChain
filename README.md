@@ -45,6 +45,18 @@ https://github.com/superAI4003/File_Digital_Signature_ON_BlockChain
     ```bash
     npx hardhat ignition deploy ./ignition/modules/Lock.js --network goerli
     ```
+    Afer deploy smart contract, you can get contract address.
+
+    How to create wallet address.
+    ```bash
+    cd blocksign
+    ```
+
+    ```bash
+    node createWallet.js
+    ```
+    You can get address and private key.
+    
 5. **Run the Backend**: Start the FastAPI backend server.
    ```bash
    uvicorn main:app --reload --port 8080
