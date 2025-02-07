@@ -6,8 +6,16 @@ from config import w3, contract, PRIVATE_KEY
 from eth_account.messages import encode_defunct
 import os
 from eth_account import Account
-
+from fastapi.middleware.cors import CORSMiddleware
+from web3.exceptions import ContractLogicError, Web3Exception
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
 
 @app.post("/upload-file/")
 async def upload_file(file: UploadFile ):
@@ -21,16 +29,27 @@ async def upload_file(file: UploadFile ):
 
     wallet_address = w3.eth.account.from_key(wallet_private_key).address
     current_nonce = w3.eth.get_transaction_count(wallet_address, 'pending')
-    txn = contract.functions.signFile(file_hash_bytes32, signed_message.signature).build_transaction({
-        'from': wallet_address,
-        'gas': 2000000,
-        'gasPrice': w3.to_wei('25', 'gwei'),
-        'nonce': current_nonce
-    })
-    signed_txn = w3.eth.account.sign_transaction(txn, wallet_private_key)
-    tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
+    try:
+        txn = contract.functions.signFile(file_hash_bytes32, signed_message.signature).build_transaction({
+            'from': wallet_address,
+            'gas': contract.functions.signFile(file_hash_bytes32, signed_message.signature).estimate_gas({'from': wallet_address}),
+            'gasPrice': w3.eth.gas_price,
+            'nonce': current_nonce
+        })
+        signed_txn = w3.eth.account.sign_transaction(txn, wallet_private_key)
+        tx_hash = w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
-    return {"tx_hash": w3.to_hex(tx_hash)}
+        return {"tx_hash": w3.to_hex(tx_hash),"result":True }
+    except ContractLogicError as e:
+        if "File already signed by this user" in str(e):
+            return {"tx_hash": "The file has already been signed.","result":False}
+        else:
+            return {"tx_hash": "An error occurred: " + str(e),"result":False}
+    except Web3Exception as e:
+        if 'insufficient funds' in str(e):
+            return {"tx_hash": "Insufficient funds for gas.","result":False}
+        else:
+            return {"tx_hash": "An unexpected error occurred: " + str(e),"result":False}
 
 @app.post("/verify-signature/")
 async def verify_signature(file: UploadFile):
